@@ -1,0 +1,8 @@
+{
+    "description": "Inverted coordinates - center in bottom-right quadrant with negative-like positioning",
+    "alpha": 180,
+    "ox": 0.8,
+    "oy": 0.85,
+    "width": -0.3,
+    "height": -0.4
+}

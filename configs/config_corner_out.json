@@ -1,0 +1,8 @@
+{
+    "description": "One corner out of bounds - crop near edge with rotation",
+    "alpha": 25,
+    "ox": 0.15,
+    "oy": 0.2,
+    "width": 0.35,
+    "height": 0.45
+}

@@ -1,0 +1,8 @@
+{
+    "description": "Bounding box completely outside the image",
+    "alpha": 45,
+    "ox": 2.5,
+    "oy": -0.5,
+    "width": 0.3,
+    "height": 0.3
+}
