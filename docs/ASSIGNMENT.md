@@ -28,7 +28,7 @@ You are provided with a JSON file containing the information on how to crop a ro
 
 To try out different settings for cropping and validate that the method is working correctly, check out the included **cropconfig.htm** file. It will allow you to generate different settings for this crop rectangle. If the cropping rectangle is ill specified you will have to treat the following edge case properly:
 
-![edge case](img/edge_case.jpg "Edge case")
+![edge case](../img/edge_case.jpg "Edge case")
 
 **Note**: Most webcams are 4:3 in aspect size, and the image within the cropconfig tool is fixed to this aspect ratio as well.
 

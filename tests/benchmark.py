@@ -18,6 +18,7 @@ import os
 import platform
 import struct
 import sys
+import argparse
 import timeit
 from pathlib import Path
 
@@ -259,7 +260,6 @@ def print_section(title, results, show_target=False):
 
 
 def main():
-    import argparse
     parser = argparse.ArgumentParser(description="Pipeline performance benchmarks")
     parser.add_argument('--save', type=str, default=None,
                         help='Save output to a text file')

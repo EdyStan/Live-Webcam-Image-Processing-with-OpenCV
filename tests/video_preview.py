@@ -15,6 +15,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import zmq
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.rotated_crop import compute_rotated_corners
 
