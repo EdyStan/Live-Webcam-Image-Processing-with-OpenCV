@@ -12,7 +12,6 @@ robotics_interview_python/
 ├── video_acquisition.py        # Webcam capture & frame publisher
 ├── video_crop.py               # Frame subscriber & rotated crop display
 ├── requirements.txt            # Python dependencies
-├── DESIGN_NOTES.md             # Architecture decisions & rationale
 │
 ├── utils/
 │   └── rotated_crop.py         # Core rotated crop algorithm (RotatedCropper)
