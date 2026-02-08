@@ -33,12 +33,17 @@ robotics_interview_python/
 │   └── visualize_clamping.py   # Visualization of edge-case clamping
 │
 ├── docs/
-│   ├── ASSIGNMENT.md           # Original assignment specification
-│   └── ASSIGNMENT.pdf          # PDF version
+│   ├── ASSIGNMENT.md              # Original assignment specification
+│   ├── ASSIGNMENT.pdf             # PDF version
+│   └── Project_Results_Overview.md # Workflow, architecture, benchmarks & screenshots
 │
 └── img/
-    ├── edge_case.jpg           # Reference: out-of-bounds regions filled black
-    └── pattern.jpg             # Test pattern image
+    ├── edge_case.jpg              # Reference: out-of-bounds regions filled black
+    ├── pattern.jpg                # Test pattern image
+    ├── clamping_edge_cases_visual.png  # Clamping algorithm visualization
+    ├── publisher_screenshot.png   # Publisher window screenshot
+    ├── subscriber_screenshot.png  # Subscriber window screenshot
+    └── full_system_screenshot.png # Full system running side by side
 ```
 
 ---

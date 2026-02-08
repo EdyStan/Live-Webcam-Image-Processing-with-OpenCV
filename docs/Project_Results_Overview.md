@@ -21,12 +21,12 @@ The system runs as two independent processes communicating over the network:
 
 ```
   video_acquisition.py                              video_crop.py
- ┌────────────────────────────┐                   ┌──────────────────────────────────────┐
- │                            │     ZeroMQ        │                                      │
- │  Webcam ──► Serialize ──►  │ ── tcp://5555 ──► │  ──► Deserialize ──► Crop ──► Display│
+ ┌────────────────────────────┐                   ┌───────────────────────────────────────┐
+ │                            │     ZeroMQ        │                                       │
+ │  Webcam ──► Serialize ──►  │ ── tcp://5555 ──► │  ──► Deserialize ──► Crop ──► Display │
  │             (20B header    │     PUB/SUB       │      (frombuffer     (warp    (imshow)│
- │              + raw pixels) │                   │       + reshape)     Persp.)         │
- └────────────────────────────┘                   └──────────────────────────────────────┘
+ │              + raw pixels) │                   │       + reshape)     Persp.)          │
+ └────────────────────────────┘                   └───────────────────────────────────────┘
 ```
 
 ### Step-by-step flow
@@ -123,9 +123,9 @@ The core function `compute_rotated_corners()` calculates the four vertices of a 
        (-w/2, h/2)   ───  (w/2, h/2)
 
 2. Apply 2D rotation matrix (angle α, negated for image coordinates):
-       ┌ cos(-α)  -sin(-α) ┐
-       │ sin(-α)   cos(-α) │
-       └                    ┘
+       ┌ cos(-α)  -sin(-α)        ┐
+       │ sin(-α)   cos(-α)        │
+       └                          ┘
 
 3. Translate corners back to center (cx, cy).
 
