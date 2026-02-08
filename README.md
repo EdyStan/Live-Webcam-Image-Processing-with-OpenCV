@@ -12,37 +12,13 @@ robotics_interview_python/
 ├── video_acquisition.py        # Webcam capture & frame publisher
 ├── video_crop.py               # Frame subscriber & rotated crop display
 ├── requirements.txt            # Python dependencies
-│
 ├── utils/
 │   └── rotated_crop.py         # Core rotated crop algorithm (RotatedCropper)
 │
-├── configs/
-│   ├── rcrop_parameters.json   # Default crop configuration
-│   ├── config_corner_out.json  # Edge case: corner outside bounds
-│   ├── config_inverted.json    # Edge case: negative dimensions
-│   ├── config_outside.json     # Edge case: crop fully outside image
-│   ├── config_oversized.json   # Edge case: crop larger than image
-│   └── cropconfig.htm          # Interactive HTML tool for generating configs
-│
-├── tests/
-│   ├── test_rotated_crop.py    # Unit tests for the crop algorithm
-│   ├── test_integration.py     # Integration tests (serialization, ZMQ, pipeline)
-│   ├── benchmark.py            # Performance benchmarking suite
-│   ├── video_preview.py        # Video preview utility
-│   └── visualize_clamping.py   # Visualization of edge-case clamping
-│
-├── docs/
-│   ├── ASSIGNMENT.md              # Original assignment specification
-│   ├── ASSIGNMENT.pdf             # PDF version
-│   └── Project_Results_Overview.md # Workflow, architecture, benchmarks & screenshots
-│
-└── img/
-    ├── edge_case.jpg              # Reference: out-of-bounds regions filled black
-    ├── pattern.jpg                # Test pattern image
-    ├── clamping_edge_cases_visual.png  # Clamping algorithm visualization
-    ├── publisher_screenshot.png   # Publisher window screenshot
-    ├── subscriber_screenshot.png  # Subscriber window screenshot
-    └── full_system_screenshot.png # Full system running side by side
+├── configs/                    # Crop configuration files
+├── tests/                      # Unit & integration tests + benchmarks & video preview
+├── docs/                       # Documentation files (assignment & project results overview)
+└── img/                        # images used in documentation
 ```
 
 ---
@@ -167,9 +143,6 @@ pytest tests/ -v
 
 # Run only unit tests
 pytest tests/test_rotated_crop.py -v
-
-# Run only integration tests
-pytest tests/test_integration.py -v
 
 # Run benchmarks
 python tests/benchmark.py

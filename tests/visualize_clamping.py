@@ -1,16 +1,3 @@
-#!/usr/bin/env python3
-"""
-Visual test for bbox validation and clamping.
-
-Displays a grid showing original vs clamped bounding boxes for various
-edge-case configurations. Each cell shows the original bbox (red) and
-the clamped result (green) side by side, with config details below.
-
-Usage:
-    python tests/visualize_clamping.py
-    python tests/visualize_clamping.py --save output.png
-"""
-
 import argparse
 import sys
 from pathlib import Path
@@ -23,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.rotated_crop import compute_rotated_corners, clamp_config
 
 
-# ── Configs ──────────────────────────────────────────────────────────────────
+#  Configs 
 CONFIGS = [
     ("Normal", {
         "alpha": 353.34, "ox": 0.434, "oy": 0.493,
@@ -51,7 +38,7 @@ CONFIGS = [
     }),
 ]
 
-# ── Layout constants ─────────────────────────────────────────────────────────
+#  Layout constants 
 THUMB_W = 320          # each thumbnail width
 THUMB_H = 240          # each thumbnail height
 GAP = 20               # gap between cells
@@ -75,7 +62,7 @@ TEXT_DIM = (160, 160, 160)
 WARN_COLOR = (60, 200, 255)     # BGR yellow-orange
 
 
-# ── Drawing helpers ──────────────────────────────────────────────────────────
+#  Drawing helpers 
 
 def draw_bbox_overlay(base_img, config, color):
     """Return a thumbnail with the rotated bbox drawn on the image."""
@@ -164,7 +151,7 @@ def fmt_config(cfg):
     )
 
 
-# ── Main composition ────────────────────────────────────────────────────────
+#  Main composition 
 
 def build_visualization(base_img):
     """Build the full grid image."""
@@ -175,7 +162,7 @@ def build_visualization(base_img):
 
     canvas = np.full((total_h, total_w, 3), BG[0], dtype=np.uint8)
 
-    # ── Title bar ────────────────────────────────────────────────────────
+    #  Title bar 
     cv2.rectangle(canvas, (0, 0), (total_w, TITLE_H), (45, 45, 45), -1)
     put_text(canvas, "BBOX CLAMPING VISUALIZATION", (MARGIN, 38),
              scale=0.85, color=TEXT_WHITE, thickness=2)
@@ -187,7 +174,7 @@ def build_visualization(base_img):
     cv2.rectangle(canvas, (lx + 120, 16), (lx + 134, 30), CLAMP_COLOR, -1)
     put_text(canvas, "Clamped", (lx + 140, 29), scale=0.45, color=CLAMP_COLOR)
 
-    # ── Grid cells ───────────────────────────────────────────────────────
+    #  Grid cells 
     for idx, (label, config) in enumerate(CONFIGS):
         row = idx // COLS
         col = idx % COLS
@@ -205,7 +192,7 @@ def build_visualization(base_img):
                       (x0 + CELL_W, y0 + CELL_H),
                       (65, 65, 65), 1)
 
-        # ── Cell label (inside the cell, top strip) ──────────────────────
+        #  Cell label (inside the cell, top strip) 
         cv2.rectangle(canvas,
                       (x0 + 1, y0 + 1),
                       (x0 + CELL_W - 1, y0 + LABEL_H),
@@ -218,20 +205,29 @@ def build_visualization(base_img):
         tx_orig = x0 + CELL_PAD
         tx_clamp = x0 + CELL_PAD + THUMB_W + ARROW_W
 
-        # ── Original thumbnail ───────────────────────────────────────────
+        #  Original thumbnail 
         orig_thumb = draw_bbox_overlay(base_img, config, ORIG_COLOR)
         canvas[ty:ty + THUMB_H, tx_orig:tx_orig + THUMB_W] = orig_thumb
 
-        # ── Arrow ────────────────────────────────────────────────────────
+        #  Arrow 
         arrow_x = tx_orig + THUMB_W
         draw_arrow(canvas, arrow_x, ty + THUMB_H // 2)
 
-        # ── Clamped thumbnail ────────────────────────────────────────────
+        #  Clamped thumbnail
         clamped_cfg, was_clamped, warnings = clamp_config(config, img_w, img_h)
-        clamp_thumb = draw_bbox_overlay(base_img, clamped_cfg, CLAMP_COLOR)
+        if clamped_cfg is not None:
+            clamp_thumb = draw_bbox_overlay(base_img, clamped_cfg, CLAMP_COLOR)
+        else:
+            # Bbox completely outside image – show dimmed placeholder
+            clamp_thumb = cv2.resize(base_img, (THUMB_W, THUMB_H),
+                                     interpolation=cv2.INTER_AREA)
+            clamp_thumb = (clamp_thumb * 0.3).astype(np.uint8)
+            put_text(clamp_thumb, "OUT OF BOUNDS",
+                     (THUMB_W // 2 - 60, THUMB_H // 2),
+                     scale=0.5, color=WARN_COLOR, thickness=1)
         canvas[ty:ty + THUMB_H, tx_clamp:tx_clamp + THUMB_W] = clamp_thumb
 
-        # ── Info block below thumbnails ──────────────────────────────────
+        #  Info block below thumbnails
         info_y = ty + THUMB_H + 4
 
         # Thin separator line
@@ -242,7 +238,7 @@ def build_visualization(base_img):
         info_y += 4
 
         lines_orig = fmt_config(config)
-        lines_clamp = fmt_config(clamped_cfg)
+        lines_clamp = fmt_config(clamped_cfg) if clamped_cfg is not None else ("N/A",)
 
         # Original config info (left side, dimmed)
         for j, line in enumerate(lines_orig):

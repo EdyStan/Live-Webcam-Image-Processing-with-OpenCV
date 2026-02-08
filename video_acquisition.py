@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Video Acquisition Module
-
-Captures video from webcam and publishes frames over ZeroMQ PUB socket.
-Supports configurable camera ID, resolution, and FPS.
-"""
-
 import argparse
 import signal
 import struct
@@ -20,18 +12,8 @@ import zmq
 class VideoPublisher:
     """Captures webcam frames and publishes them over ZeroMQ."""
 
-    def __init__(self, camera_id: int = 0, width: int = 640, height: int = 480,
-                 fps: int = 30, port: int = 5555):
-        """
-        Initialize the video publisher.
-
-        Args:
-            camera_id: Camera device ID (default: 0)
-            width: Frame width (default: 640)
-            height: Frame height (default: 480)
-            fps: Target frames per second (default: 30)
-            port: ZeroMQ publisher port (default: 5555)
-        """
+    def __init__(self, camera_id=0, width=640, height=480,
+                 fps=30, port=5555):
         self.camera_id = camera_id
         self.width = width
         self.height = height
@@ -43,7 +25,7 @@ class VideoPublisher:
         self._socket = None
         self._running = False
 
-    def _init_camera(self) -> bool:
+    def _init_camera(self):
         """Initialize or reinitialize the camera."""
         if self._cap is not None:
             self._cap.release()
@@ -74,7 +56,7 @@ class VideoPublisher:
         self._socket.bind(f"tcp://*:{self.port}")
         print(f"ZeroMQ publisher bound to tcp://*:{self.port}")
 
-    def _serialize_frame(self, frame: np.ndarray, timestamp: float) -> bytes:
+    def _serialize_frame(self, frame, timestamp):
         """
         Serialize frame with metadata for transmission.
 
@@ -184,7 +166,6 @@ def main():
         port=args.port
     )
 
-    # Handle SIGTERM gracefully
     def signal_handler(sig, frame):
         print("\nSignal received, stopping...")
         publisher.stop()

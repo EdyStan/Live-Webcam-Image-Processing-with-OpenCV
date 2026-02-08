@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Video Preview Module
-
-Subscribes to video frames over ZeroMQ and displays the full frame
-with the crop bounding box overlaid for visualization.
-"""
-
 import argparse
 import json
 import struct
@@ -27,15 +19,6 @@ class VideoPreview:
 
     def __init__(self, host: str = "localhost", port: int = 5555,
                  config_file: str = None, show_fps: bool = True):
-        """
-        Initialize the video preview.
-
-        Args:
-            host: ZeroMQ publisher host (default: localhost)
-            port: ZeroMQ publisher port (default: 5555)
-            config_file: Path to JSON crop configuration file
-            show_fps: Whether to overlay FPS on display (default: True)
-        """
         self.host = host
         self.port = port
         self.config_file = config_file

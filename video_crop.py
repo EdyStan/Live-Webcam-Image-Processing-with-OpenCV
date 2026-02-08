@@ -1,15 +1,6 @@
-#!/usr/bin/env python3
-"""
-Video Crop Module
-
-Subscribes to video frames over ZeroMQ, applies rotated crop transform,
-and displays the result. Supports JSON configuration files.
-"""
-
 import argparse
 import json
 import struct
-import sys
 import time
 from pathlib import Path
 
@@ -23,17 +14,8 @@ from utils.rotated_crop import RotatedCropper
 class VideoSubscriber:
     """Receives frames over ZeroMQ and applies rotated crop."""
 
-    def __init__(self, host: str = "localhost", port: int = 5555,
-                 config_file: str = None, show_fps: bool = True):
-        """
-        Initialize the video subscriber.
-
-        Args:
-            host: ZeroMQ publisher host (default: localhost)
-            port: ZeroMQ publisher port (default: 5555)
-            config_file: Path to JSON crop configuration file
-            show_fps: Whether to overlay FPS on display (default: True)
-        """
+    def __init__(self, host="localhost", port=5555,
+                 config_file=None, show_fps=True):
         self.host = host
         self.port = port
         self.config_file = config_file
@@ -102,13 +84,8 @@ class VideoSubscriber:
         except Exception as e:
             print(f"Error loading config: {e}")
 
-    def _deserialize_frame(self, data: bytes) -> tuple:
-        """
-        Deserialize frame data.
-
-        Returns:
-            (frame, timestamp) tuple, or (None, None) on error
-        """
+    def _deserialize_frame(self, data):
+        """Deserialize frame data."""
         header_size = struct.calcsize('diii')
         if len(data) < header_size:
             return None, None
@@ -128,7 +105,7 @@ class VideoSubscriber:
 
         return frame, timestamp
 
-    def _draw_fps(self, image: np.ndarray, fps: float) -> np.ndarray:
+    def _draw_fps(self, image, fps):
         """Draw FPS overlay on image."""
         text = f"FPS: {fps:.1f}"
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -175,6 +152,9 @@ class VideoSubscriber:
 
                     # Apply crop
                     cropped = self._cropper.crop(frame)
+
+                    if cropped is None:
+                        continue
 
                     # Calculate and display FPS
                     frame_count += 1
