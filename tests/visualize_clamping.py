@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.rotated_crop import compute_rotated_corners, clamp_config
 
 
-#  Configs 
+#  Configs
 CONFIGS = [
     ("Normal", {
         "alpha": 353.34, "ox": 0.434, "oy": 0.493,
@@ -36,9 +36,21 @@ CONFIGS = [
         "alpha": 7432.891, "ox": 0.123, "oy": 0.987,
         "width": 0.031, "height": 0.271,
     }),
+    ("1 corner out", {
+        "alpha": 20, "ox": 0.10, "oy": 0.25,
+        "width": 0.22, "height": 0.18,
+    }),
+    ("2 corners out", {
+        "alpha": 30, "ox": 0.85, "oy": 0.15,
+        "width": 0.3, "height": 0.2,
+    }),
+    ("3 corners out", {
+        "alpha": 15, "ox": 0.85, "oy": 0.85,
+        "width": 0.5, "height": 0.4,
+    }),
 ]
 
-#  Layout constants 
+#  Layout constants
 THUMB_W = 320          # each thumbnail width
 THUMB_H = 240          # each thumbnail height
 GAP = 20               # gap between cells
@@ -49,7 +61,7 @@ CELL_PAD = 8           # padding inside cell background
 CELL_W = THUMB_W * 2 + ARROW_W + CELL_PAD * 2   # one cell (pair) width
 CELL_H = LABEL_H + THUMB_H + INFO_H + CELL_PAD  # one cell height
 COLS = 3               # grid columns
-ROWS = 2               # grid rows
+ROWS = 3               # grid rows
 MARGIN = 28            # outer margin
 TITLE_H = 60           # top title bar height
 
@@ -62,7 +74,7 @@ TEXT_DIM = (160, 160, 160)
 WARN_COLOR = (60, 200, 255)     # BGR yellow-orange
 
 
-#  Drawing helpers 
+#  Drawing helpers
 
 def draw_bbox_overlay(base_img, config, color):
     """Return a thumbnail with the rotated bbox drawn on the image."""
@@ -75,15 +87,19 @@ def draw_bbox_overlay(base_img, config, color):
     sx = THUMB_W / img_w
     sy = THUMB_H / img_h
 
-    alpha = config.get('alpha', 0)
-    ox = config.get('ox', 0.5)
-    oy = config.get('oy', 0.5)
-    w = config.get('width', 0.5)
-    h = config.get('height', 0.5)
+    # Use pre-computed clipped corners if available, otherwise compute from config
+    if 'src_corners_px' in config:
+        corners = config['src_corners_px'].copy()
+    else:
+        alpha = config.get('alpha', 0)
+        ox = config.get('ox', 0.5)
+        oy = config.get('oy', 0.5)
+        w = config.get('width', 0.5)
+        h = config.get('height', 0.5)
 
-    cx, cy = ox * img_w, oy * img_h
-    pw, ph = abs(w) * img_w, abs(h) * img_h
-    corners = compute_rotated_corners(cx, cy, pw, ph, alpha)
+        cx, cy = ox * img_w, oy * img_h
+        pw, ph = abs(w) * img_w, abs(h) * img_h
+        corners = compute_rotated_corners(cx, cy, pw, ph, alpha)
 
     sc = corners.copy()
     sc[:, 0] *= sx
@@ -104,8 +120,12 @@ def draw_bbox_overlay(base_img, config, color):
         cv2.circle(thumb, tuple(pt), 4, color, 1, cv2.LINE_AA)
 
     # Center cross
-    draw_cx = int(np.clip(ox * img_w * sx, 0, THUMB_W - 1))
-    draw_cy = int(np.clip(oy * img_h * sy, 0, THUMB_H - 1))
+    if 'src_corners_px' in config:
+        draw_cx = int(np.clip(sc[:, 0].mean(), 0, THUMB_W - 1))
+        draw_cy = int(np.clip(sc[:, 1].mean(), 0, THUMB_H - 1))
+    else:
+        draw_cx = int(np.clip(ox * img_w * sx, 0, THUMB_W - 1))
+        draw_cy = int(np.clip(oy * img_h * sy, 0, THUMB_H - 1))
     size = 8
     cv2.line(thumb, (draw_cx - size, draw_cy), (draw_cx + size, draw_cy),
              (255, 255, 255), 2, cv2.LINE_AA)
@@ -151,7 +171,7 @@ def fmt_config(cfg):
     )
 
 
-#  Main composition 
+#  Main composition
 
 def build_visualization(base_img):
     """Build the full grid image."""
@@ -162,7 +182,7 @@ def build_visualization(base_img):
 
     canvas = np.full((total_h, total_w, 3), BG[0], dtype=np.uint8)
 
-    #  Title bar 
+    #  Title bar
     cv2.rectangle(canvas, (0, 0), (total_w, TITLE_H), (45, 45, 45), -1)
     put_text(canvas, "BBOX CLAMPING VISUALIZATION", (MARGIN, 38),
              scale=0.85, color=TEXT_WHITE, thickness=2)
@@ -174,7 +194,7 @@ def build_visualization(base_img):
     cv2.rectangle(canvas, (lx + 120, 16), (lx + 134, 30), CLAMP_COLOR, -1)
     put_text(canvas, "Clamped", (lx + 140, 29), scale=0.45, color=CLAMP_COLOR)
 
-    #  Grid cells 
+    #  Grid cells
     for idx, (label, config) in enumerate(CONFIGS):
         row = idx // COLS
         col = idx % COLS
@@ -192,7 +212,7 @@ def build_visualization(base_img):
                       (x0 + CELL_W, y0 + CELL_H),
                       (65, 65, 65), 1)
 
-        #  Cell label (inside the cell, top strip) 
+        #  Cell label (inside the cell, top strip)
         cv2.rectangle(canvas,
                       (x0 + 1, y0 + 1),
                       (x0 + CELL_W - 1, y0 + LABEL_H),
@@ -205,11 +225,11 @@ def build_visualization(base_img):
         tx_orig = x0 + CELL_PAD
         tx_clamp = x0 + CELL_PAD + THUMB_W + ARROW_W
 
-        #  Original thumbnail 
+        #  Original thumbnail
         orig_thumb = draw_bbox_overlay(base_img, config, ORIG_COLOR)
         canvas[ty:ty + THUMB_H, tx_orig:tx_orig + THUMB_W] = orig_thumb
 
-        #  Arrow 
+        #  Arrow
         arrow_x = tx_orig + THUMB_W
         draw_arrow(canvas, arrow_x, ty + THUMB_H // 2)
 

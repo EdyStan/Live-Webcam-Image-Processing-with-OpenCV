@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.rotated_crop import compute_rotated_corners, rotated_crop, clamp_config, RotatedCropper
+from utils.rotated_crop import compute_rotated_corners, clamp_config, RotatedCropper
 
 
 # compute_rotated_corners
@@ -20,20 +20,6 @@ def test_corners_90_degrees():
     corners = compute_rotated_corners(100, 100, 40, 20, 90)
     expected = np.array([[90, 120], [90, 80], [110, 80], [110, 120]], dtype=np.float32)
     np.testing.assert_array_almost_equal(corners, expected, decimal=5)
-
-
-# rotated_crop
-
-def test_crop_output_dimensions():
-    img = np.zeros((200, 300, 3), dtype=np.uint8)
-    result = rotated_crop(img, 150, 100, 80, 60, 30)
-    assert result.shape == (60, 80, 3)
-
-
-def test_crop_grayscale():
-    img = np.ones((100, 100), dtype=np.uint8) * 128
-    result = rotated_crop(img, 50, 50, 30, 20, 0)
-    assert result.shape == (20, 30)
 
 
 # clamp_config
@@ -120,3 +106,78 @@ def test_cropper_returns_none_when_completely_outside():
     img = np.zeros((480, 640, 3), dtype=np.uint8)
     assert cropper.crop(img) is None
     assert cropper.was_clamped
+
+# clamp_config – asymmetric shrink tests
+
+
+def _corners_from_result(result, img_w, img_h):
+    """Helper: compute pixel corners from a clamp_config result."""
+    cx = result["ox"] * img_w
+    cy = result["oy"] * img_h
+    pw = result["width"] * img_w
+    ph = result["height"] * img_h
+    return compute_rotated_corners(cx, cy, pw, ph, result["alpha"])
+
+
+def _assert_corners_in_image(corners, img_w, img_h, tol=0.5):
+    """Assert every corner lies within [0, W] x [0, H] (with tolerance)."""
+    assert corners[:, 0].min() >= -tol
+    assert corners[:, 0].max() <= img_w + tol
+    assert corners[:, 1].min() >= -tol
+    assert corners[:, 1].max() <= img_h + tol
+
+
+def test_clamp_shrink_left_edge_alpha0():
+    """Left side overflows → anchor right edge (TR,BR), shrink width only."""
+    img_w, img_h = 640, 480
+    # cx=224, cy=240, pw=512(hw=256), ph=192(hh=96)
+    # TL=(-32,144) out, TR=(480,144) in, BR=(480,336) in, BL=(-32,336) out
+    config = {"alpha": 0, "ox": 0.35, "oy": 0.50, "width": 0.80, "height": 0.40}
+
+    result, was_clamped, _ = clamp_config(config, img_w, img_h)
+    assert result is not None and was_clamped
+    corners = _corners_from_result(result, img_w, img_h)
+
+    # Anchored corners stay put; shrunk corners land on x=0
+    np.testing.assert_array_almost_equal(corners[1], [480, 144], decimal=1)  # TR
+    np.testing.assert_array_almost_equal(corners[2], [480, 336], decimal=1)  # BR
+    np.testing.assert_array_almost_equal(corners[0], [0, 144], decimal=1)    # TL
+    np.testing.assert_array_almost_equal(corners[3], [0, 336], decimal=1)    # BL
+
+    assert result["height"] == pytest.approx(config["height"], abs=1e-6)
+
+
+def test_clamp_shrink_bottom_edge_alpha0():
+    """Bottom side overflows → anchor top edge (TL,TR), shrink height only."""
+    img_w, img_h = 640, 480
+    # cx=320, cy=384, pw=256(hw=128), ph=240(hh=120)
+    # TL=(192,264) in, TR=(448,264) in, BR=(448,504) out, BL=(192,504) out
+    config = {"alpha": 0, "ox": 0.50, "oy": 0.80, "width": 0.40, "height": 0.50}
+
+    result, was_clamped, _ = clamp_config(config, img_w, img_h)
+    assert result is not None and was_clamped
+    corners = _corners_from_result(result, img_w, img_h)
+
+    # Anchored top edge stays; bottom edge shrinks to y=480
+    np.testing.assert_array_almost_equal(corners[0], [192, 264], decimal=1)  # TL
+    np.testing.assert_array_almost_equal(corners[1], [448, 264], decimal=1)  # TR
+    np.testing.assert_array_almost_equal(corners[2], [448, 480], decimal=1)  # BR
+    np.testing.assert_array_almost_equal(corners[3], [192, 480], decimal=1)  # BL
+
+    assert result["width"] == pytest.approx(config["width"], abs=1e-6)
+
+
+def test_clamp_anchor_single_corner_alpha0():
+    """Only BL corner is in bounds → anchor it and shrink the other three sides."""
+    img_w, img_h = 640, 480
+    # cx=480, cy=120, pw=512(hw=256), ph=384(hh=192)
+    # TL=(224,-72) out, TR=(736,-72) out, BR=(736,312) out, BL=(224,312) in
+    config = {"alpha": 0, "ox": 0.75, "oy": 0.25, "width": 0.80, "height": 0.80}
+
+    result, was_clamped, _ = clamp_config(config, img_w, img_h)
+    assert result is not None and was_clamped
+    corners = _corners_from_result(result, img_w, img_h)
+
+    # BL (corners[3]) must stay at its original position
+    np.testing.assert_array_almost_equal(corners[3], [224, 312], decimal=1)
+    _assert_corners_in_image(corners, img_w, img_h)

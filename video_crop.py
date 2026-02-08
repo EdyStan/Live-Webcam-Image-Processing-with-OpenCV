@@ -143,7 +143,7 @@ class VideoSubscriber:
         try:
             while self._running:
                 # Try to receive frame with timeout
-                if self._socket.poll(timeout=1000):
+                if self._socket.poll(timeout=1000):  # (ms)
                     data = self._socket.recv()
                     frame, timestamp = self._deserialize_frame(data)
 

@@ -52,17 +52,12 @@ class VideoPublisher:
         """Initialize ZeroMQ publisher socket."""
         self._context = zmq.Context()
         self._socket = self._context.socket(zmq.PUB)
-        self._socket.setsockopt(zmq.SNDHWM, 2)  # Limit send queue
-        self._socket.bind(f"tcp://*:{self.port}")
+        self._socket.setsockopt(zmq.SNDHWM, 2)  # the socket will hold at most 2 outgoing messages in its queue. This keeps the stream real-time rather than falling behind.
+        self._socket.bind(f"tcp://*:{self.port}")   # Opens the socket on the given port and starts listening for connections.
         print(f"ZeroMQ publisher bound to tcp://*:{self.port}")
 
     def _serialize_frame(self, frame, timestamp):
-        """
-        Serialize frame with metadata for transmission.
-
-        Format: timestamp (8B double) + height (4B int) + width (4B int) +
-                channels (4B int) + frame bytes
-        """
+        """Serialize frame with metadata for transmission."""
         h, w = frame.shape[:2]
         c = frame.shape[2] if len(frame.shape) == 3 else 1
 
@@ -113,7 +108,7 @@ class VideoPublisher:
                 # Print FPS every second
                 if timestamp - last_fps_time >= 1.0:
                     fps = frame_count / (timestamp - last_fps_time)
-                    print(f"Publishing at {fps:.1f} FPS", end='\r')
+                    print(f"Publishing at {fps:.1f} FPS", end='\r')  # replaces last line
                     frame_count = 0
                     last_fps_time = timestamp
 

@@ -1,17 +1,25 @@
+"""
+Full end-to-end pipeline benchmark.
+
+Measures: frame generation -> serialization -> ZeroMQ PUB/SUB -> deserialization -> clamp + crop.
+Uses synthetic frames (no webcam needed), no display.
+"""
+
 import os
 import platform
 import struct
 import sys
+import threading
 import time
 from pathlib import Path
 
 import cv2
 import numpy as np
+import zmq
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.rotated_crop import RotatedCropper, rotated_crop
-
+from utils.rotated_crop import RotatedCropper
 
 RESOLUTIONS = {
     "SD  640x480":   (480, 640),
@@ -25,59 +33,112 @@ TARGETS = {
     "FHD 1920x1080": 30,
 }
 
-CROP_CONFIG = {'alpha': 30, 'ox': 0.5, 'oy': 0.5, 'width': 0.4, 'height': 0.4}
-WARMUP = 50
-ITERATIONS = 1000
+CLAMP_CONFIGS = {
+    "In bounds":     {"alpha": 353.34, "ox": 0.434, "oy": 0.493,
+                      "width": 0.241, "height": 0.627},
+    "1 corner out":  {"alpha": 20, "ox": 0.10, "oy": 0.25,
+                      "width": 0.22, "height": 0.18},
+    "2 corners out": {"alpha": 30, "ox": 0.85, "oy": 0.15,
+                      "width": 0.3, "height": 0.2},
+}
+
+HEADER_FMT = 'diii'
+HEADER_SIZE = struct.calcsize(HEADER_FMT)
+WARMUP_SEC = 1.0
+BENCH_SEC = 5.0
+BASE_PORT = 15555
 
 
-def bench(func, warmup=WARMUP, n=ITERATIONS):
-    for _ in range(warmup):
-        func()
-    start = time.perf_counter()
-    for _ in range(n):
-        func()
-    return n / (time.perf_counter() - start)
+def publisher_thread(port, frame, duration):
+    """Publish a pre-serialized synthetic frame in a tight loop."""
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.PUB)
+    sock.setsockopt(zmq.SNDHWM, 2)
+    sock.bind(f"tcp://*:{port}")
+
+    h, w = frame.shape[:2]
+    c = frame.shape[2] if len(frame.shape) == 3 else 1
+    payload = struct.pack(HEADER_FMT, 0.0, h, w, c) + frame.tobytes()
+
+    # Give subscriber time to connect
+    time.sleep(0.3)
+
+    deadline = time.perf_counter() + duration
+    while time.perf_counter() < deadline:
+        sock.send(payload, zmq.NOBLOCK)
+
+    sock.close()
+    ctx.term()
+
+
+def run_benchmark(port, frame, cropper, warmup_sec, bench_sec):
+    """Subscribe, deserialize, crop - return FPS over the bench window."""
+    total_duration = warmup_sec + bench_sec
+
+    pub = threading.Thread(
+        target=publisher_thread,
+        args=(port, frame, total_duration + 1.0),
+        daemon=True,
+    )
+    pub.start()
+
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.SUB)
+    sock.setsockopt(zmq.RCVHWM, 2)
+    sock.setsockopt_string(zmq.SUBSCRIBE, "")
+    sock.connect(f"tcp://localhost:{port}")
+
+    # Warmup
+    warmup_deadline = time.perf_counter() + warmup_sec
+    while time.perf_counter() < warmup_deadline:
+        if sock.poll(timeout=100):
+            data = sock.recv()
+            _, h, w, c = struct.unpack(HEADER_FMT, data[:HEADER_SIZE])
+            f = np.frombuffer(data[HEADER_SIZE:], dtype=np.uint8).reshape((h, w, c))
+            cropper.crop(f)
+
+    # Benchmark
+    count = 0
+    bench_deadline = time.perf_counter() + bench_sec
+    while time.perf_counter() < bench_deadline:
+        if sock.poll(timeout=100):
+            data = sock.recv()
+            _, h, w, c = struct.unpack(HEADER_FMT, data[:HEADER_SIZE])
+            f = np.frombuffer(data[HEADER_SIZE:], dtype=np.uint8).reshape((h, w, c))
+            cropper.crop(f)
+            count += 1
+
+    sock.close()
+    ctx.term()
+    pub.join(timeout=3)
+
+    return count / bench_sec if bench_sec > 0 else 0
 
 
 def main():
-    print(f"Python {platform.python_version()} | {platform.system()} {platform.machine()} | "
-          f"{os.cpu_count()} cores | NumPy {np.__version__} | OpenCV {cv2.__version__}\n")
+    print(f"Python {platform.python_version()} | "
+          f"{platform.system()} {platform.machine()} | "
+          f"{os.cpu_count()} cores | "
+          f"NumPy {np.__version__} | OpenCV {cv2.__version__}\n")
 
-    print("Crop (cached transform)")
-    for label, (h, w) in RESOLUTIONS.items():
-        frame = np.random.randint(0, 256, (h, w, 3), dtype=np.uint8)
-        cropper = RotatedCropper(CROP_CONFIG)
-        cropper.crop(frame)
-        fps = bench(lambda: cropper.crop(frame))
-        target = TARGETS[label]
-        status = "PASS" if fps >= target else "FAIL"
-        print(f"  {label}  {fps:>7.0f} FPS (target {target})  {status}")
+    print("Full pipeline (ZMQ PUB/SUB -> deserialize -> clamp + crop)")
+    print(f"  warmup {WARMUP_SEC:.0f}s, measure {BENCH_SEC:.0f}s per run\n")
 
-    print("\nCrop (no cache)")
-    for label, (h, w) in RESOLUTIONS.items():
-        frame = np.random.randint(0, 256, (h, w, 3), dtype=np.uint8)
-        cx, cy = w // 2, h // 2
-        cw, ch = int(w * 0.4), int(h * 0.4)
-        fps = bench(lambda: rotated_crop(frame, cx, cy, cw, ch, 30))
-        print(f"  {label}  {fps:>7.0f} FPS")
+    port = BASE_PORT
+    for clamp_label, cfg in CLAMP_CONFIGS.items():
+        for res_label, (h, w) in RESOLUTIONS.items():
+            frame = np.random.randint(0, 256, (h, w, 3), dtype=np.uint8)
+            cropper = RotatedCropper(cfg)
+            # Prime the cropper once so first-call setup cost is excluded
+            cropper.crop(frame)
 
-    print("\nFull pipeline (deserialize + crop)")
-    header_size = struct.calcsize('diii')
-    for label, (h, w) in RESOLUTIONS.items():
-        frame = np.random.randint(0, 256, (h, w, 3), dtype=np.uint8)
-        data = struct.pack('diii', 0.0, h, w, 3) + frame.tobytes()
-        cropper = RotatedCropper(CROP_CONFIG)
-        cropper.crop(frame)
-
-        def pipeline():
-            _, dh, dw, dc = struct.unpack('diii', data[:header_size])
-            f = np.frombuffer(data[header_size:], dtype=np.uint8).reshape((dh, dw, dc))
-            return cropper.crop(f)
-
-        fps = bench(pipeline)
-        target = TARGETS[label]
-        status = "PASS" if fps >= target else "FAIL"
-        print(f"  {label}  {fps:>7.0f} FPS (target {target})  {status}")
+            fps = run_benchmark(port, frame, cropper, WARMUP_SEC, BENCH_SEC)
+            target = TARGETS[res_label]
+            status = "PASS" if fps >= target else "FAIL"
+            print(f"  {clamp_label:<16s} {res_label}  {fps:>7.0f} FPS "
+                  f"(target {target})  {status}")
+            port += 1
+        print()
 
 
 if __name__ == "__main__":

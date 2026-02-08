@@ -30,14 +30,14 @@ The system is split into two scripts connected over a ZeroMQ PUB/SUB socket:
 ```
   video_acquisition.py                       video_crop.py
  ┌──────────────────────┐    ZeroMQ       ┌──────────────────────────────┐
- │  Webcam  ──► Encode  │ ──tcp://5555──► │  Decode ──► Crop ──► Display │
+ │  Webcam  --> Encode  │ --tcp://5555--> │  Decode --> Crop --> Display │
  └──────────────────────┘                 └──────────────────────────────┘
 ```
 
 1. **`video_acquisition.py`** opens the webcam, captures frames, serializes them into a compact binary format (20-byte header + raw pixels), and publishes them on a ZeroMQ PUB socket.
 2. **`video_crop.py`** subscribes to the stream, deserializes each frame, applies a rotated crop transform (configured via JSON), and displays the result in a window.
 
-The rotated crop algorithm in **`utils/rotated_crop.py`** uses `cv2.getPerspectiveTransform` to map a rotated rectangle directly to an axis-aligned output in a single operation. It caches the transform matrix for performance and handles edge cases (out-of-bounds regions are filled with black).
+The rotated crop algorithm in **`utils/rotated_crop.py`** uses `cv2.getPerspectiveTransform` to map a rotated rectangle directly to an axis-aligned output in a single operation. It caches the transform matrix for performance and handles edge cases where the crop extends beyond the image by asymmetrically shrinking the rectangle back into bounds.
 
 ---
 
@@ -90,7 +90,8 @@ Optional flags:
 |------|---------|-------------|
 | `--host` | `localhost` | Publisher hostname |
 | `--port` | `5555` | Publisher port |
-| `--config` | *(required)* | Path to crop config JSON |
+| `--config` | `rcrop_parameters.json` | Path to crop config JSON |
+| `--no-fps` | off | Disable FPS overlay |
 
 ### Keyboard Controls (video_crop.py)
 
@@ -127,9 +128,9 @@ To create or adjust configs visually, open **`configs/cropconfig.htm`** in a bro
 
 ### Edge Case Handling
 
-When the crop rectangle extends beyond the image boundaries, out-of-bounds regions are filled with black:
+When the crop rectangle extends beyond the image boundaries, `clamp_config()` applies **asymmetric shrinking** to bring it back within bounds. Instead of uniformly scaling and then translating the rectangle, the algorithm works in the rectangle's local coordinate frame and shrinks only the out-of-bounds sides inward while anchoring corners that are already inside the image. This preserves as much of the original crop region as possible and avoids unexpected center shifts.
 
-![Edge case - out of bounds filled with black](img/edge_case.jpg)
+See [Project_Results_Overview.md](docs/Project_Results_Overview.md#edge-case-clamping-algorithm) for a full algorithm walkthrough.
 
 Several edge-case configs are provided in `configs/` for testing.
 
